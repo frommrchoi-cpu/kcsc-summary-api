@@ -1,15 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 import requests
-import openai
 from dotenv import load_dotenv
 import os
+from openai import OpenAI
 
-# .env 환경변수 로드
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-kcsc_api_key = os.getenv("KCSC_API_KEY")
 
 app = Flask(__name__)
+client = OpenAI()
 
 @app.route('/')
 def home():
@@ -18,15 +16,16 @@ def home():
 @app.route('/kcsc_summary', methods=['GET'])
 def kcsc_summary():
     try:
+        kcsc_api_key = os.getenv("KCSC_API_KEY")
         kcsc_url = f"https://kcsc.re.kr/OpenApi/CodeList?key={kcsc_api_key}"
         kcsc_resp = requests.get(kcsc_url)
 
         if kcsc_resp.status_code != 200:
             return jsonify({'error': 'KCSC API 요청 실패'}), 500
 
-        kcsc_data = kcsc_resp.text[:15000]  # 너무 긴 경우 자르기
+        kcsc_data = kcsc_resp.text[:15000]
 
-        summary_resp = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "Summarize the following construction code for practical design application."},
@@ -34,11 +33,11 @@ def kcsc_summary():
             ]
         )
 
-        return jsonify({'summary': summary_resp['choices'][0]['message']['content']})
+        summary_text = response.choices[0].message.content
+        return jsonify({'summary': summary_text})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Render 배포용 포트 지정
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
